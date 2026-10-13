@@ -12,7 +12,10 @@
     "pay": "node tools/pay.mjs"
   },
   "dependencies": {
-    "@run402/sdk": "^4.117.1"
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "@run402/sdk": "^4.118.0",
+    "@scure/base": "^1.2.6"
   },
   "license": "MIT",
   "devDependencies": {

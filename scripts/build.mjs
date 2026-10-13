@@ -3,7 +3,7 @@
 import { build } from "esbuild";
 import { mkdirSync } from "node:fs";
 
-const FUNCTIONS = ["quote", "swap-sats-in", "swap-status", "payout-usdc"];
+const FUNCTIONS = ["quote", "swap-sats-in", "swap-status", "payout-usdc", "swap-usdc-in", "payout-sats", "refund-usdc"];
 mkdirSync("dist", { recursive: true });
 for (const name of FUNCTIONS) {
   await build({

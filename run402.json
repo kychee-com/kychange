@@ -5,6 +5,10 @@
       {
         "id": "001_swaps",
         "sql_path": "db/001_swaps.sql"
+      },
+      {
+        "id": "002_route_a",
+        "sql_path": "db/002_route_a.sql"
       }
     ]
   },
@@ -49,6 +53,36 @@
         "source": {
           "path": "dist/payout-usdc.mjs"
         }
+      },
+      "swap-usdc-in": {
+        "runtime": "node22",
+        "config": {
+          "timeout_seconds": 10,
+          "memory_mb": 128
+        },
+        "source": {
+          "path": "dist/swap-usdc-in.mjs"
+        }
+      },
+      "payout-sats": {
+        "runtime": "node22",
+        "config": {
+          "timeout_seconds": 30,
+          "memory_mb": 128
+        },
+        "source": {
+          "path": "dist/payout-sats.mjs"
+        }
+      },
+      "refund-usdc": {
+        "runtime": "node22",
+        "config": {
+          "timeout_seconds": 30,
+          "memory_mb": 128
+        },
+        "source": {
+          "path": "dist/refund-usdc.mjs"
+        }
       }
     }
   },
@@ -90,7 +124,47 @@
           "pay_to": "org_default_payout",
           "networks": [
             "lightning-testnet"
-          ]
+          ],
+          "discovery": {
+            "description": "Swap 10,000 sats on Bitcoin Lightning into USDC on Base: pay this route over x402 exact on lnbtc (the invoice is bound to the request), name a Base address, and the desk pays the USDC leg at the index price minus the spread. Testnet instance: Lightning testnet3 in, Base Sepolia USDC out (demo-mode payout).",
+            "service_name": "kychange",
+            "tags": [
+              "swap",
+              "lightning",
+              "usdc"
+            ],
+            "input": {
+              "body_type": "json",
+              "body_schema": {
+                "type": "object",
+                "required": [
+                  "destination"
+                ],
+                "properties": {
+                  "destination": {
+                    "type": "string",
+                    "description": "An EVM address on Base that receives the USDC"
+                  },
+                  "quote_id": {
+                    "type": "string",
+                    "description": "Optional quote_id from GET /api/quote"
+                  }
+                }
+              },
+              "example": {
+                "destination": "0x0000000000000000000000000000000000000000"
+              }
+            },
+            "output": {
+              "example": {
+                "swap_id": "swp_…",
+                "state": "payout_pending",
+                "sats_in": 10000,
+                "usd_out": "$9.95",
+                "status_url": "https://kychange.com/api/swaps/swp_…?claim=clm_…"
+              }
+            }
+          }
         }
       },
       {
@@ -109,7 +183,47 @@
           "pay_to": "org_default_payout",
           "networks": [
             "lightning-testnet"
-          ]
+          ],
+          "discovery": {
+            "description": "Swap 100,000 sats on Bitcoin Lightning into USDC on Base: pay this route over x402 exact on lnbtc (the invoice is bound to the request), name a Base address, and the desk pays the USDC leg at the index price minus the spread. Testnet instance: Lightning testnet3 in, Base Sepolia USDC out (demo-mode payout).",
+            "service_name": "kychange",
+            "tags": [
+              "swap",
+              "lightning",
+              "usdc"
+            ],
+            "input": {
+              "body_type": "json",
+              "body_schema": {
+                "type": "object",
+                "required": [
+                  "destination"
+                ],
+                "properties": {
+                  "destination": {
+                    "type": "string",
+                    "description": "An EVM address on Base that receives the USDC"
+                  },
+                  "quote_id": {
+                    "type": "string",
+                    "description": "Optional quote_id from GET /api/quote"
+                  }
+                }
+              },
+              "example": {
+                "destination": "0x0000000000000000000000000000000000000000"
+              }
+            },
+            "output": {
+              "example": {
+                "swap_id": "swp_…",
+                "state": "payout_pending",
+                "sats_in": 100000,
+                "usd_out": "$9.95",
+                "status_url": "https://kychange.com/api/swaps/swp_…?claim=clm_…"
+              }
+            }
+          }
         }
       },
       {
@@ -128,7 +242,218 @@
           "pay_to": "org_default_payout",
           "networks": [
             "lightning-testnet"
-          ]
+          ],
+          "discovery": {
+            "description": "Swap 1,000,000 sats on Bitcoin Lightning into USDC on Base: pay this route over x402 exact on lnbtc (the invoice is bound to the request), name a Base address, and the desk pays the USDC leg at the index price minus the spread. Testnet instance: Lightning testnet3 in, Base Sepolia USDC out (demo-mode payout).",
+            "service_name": "kychange",
+            "tags": [
+              "swap",
+              "lightning",
+              "usdc"
+            ],
+            "input": {
+              "body_type": "json",
+              "body_schema": {
+                "type": "object",
+                "required": [
+                  "destination"
+                ],
+                "properties": {
+                  "destination": {
+                    "type": "string",
+                    "description": "An EVM address on Base that receives the USDC"
+                  },
+                  "quote_id": {
+                    "type": "string",
+                    "description": "Optional quote_id from GET /api/quote"
+                  }
+                }
+              },
+              "example": {
+                "destination": "0x0000000000000000000000000000000000000000"
+              }
+            },
+            "output": {
+              "example": {
+                "swap_id": "swp_…",
+                "state": "payout_pending",
+                "sats_in": 1000000,
+                "usd_out": "$9.95",
+                "status_url": "https://kychange.com/api/swaps/swp_…?claim=clm_…"
+              }
+            }
+          }
+        }
+      },
+      {
+        "pattern": "/api/sats/0.10",
+        "methods": [
+          "POST"
+        ],
+        "target": {
+          "type": "function",
+          "name": "swap-usdc-in"
+        },
+        "pricing": {
+          "mode": "always",
+          "amount_usd_micros": 100000,
+          "pay_to": "org_default_payout",
+          "networks": [
+            "testnet"
+          ],
+          "discovery": {
+            "description": "Swap $0.10 of USDC on Base into sats on Bitcoin Lightning: pay this route over x402, name a Lightning address or a BOLT11 invoice for exactly the quoted sats (or with no amount), and the desk pays the sats within seconds with the preimage as the receipt. Testnet instance: Base Sepolia USDC in, Lightning testnet3 sats out.",
+            "service_name": "kychange",
+            "tags": [
+              "swap",
+              "lightning",
+              "bitcoin"
+            ],
+            "input": {
+              "body_type": "json",
+              "body_schema": {
+                "type": "object",
+                "required": [
+                  "destination"
+                ],
+                "properties": {
+                  "destination": {
+                    "type": "string",
+                    "description": "A Lightning address (name@domain) or a BOLT11 invoice"
+                  },
+                  "quote_id": {
+                    "type": "string",
+                    "description": "Optional quote_id from GET /api/quote"
+                  }
+                }
+              },
+              "example": {
+                "destination": "you@getalby.com"
+              }
+            },
+            "output": {
+              "example": {
+                "swap_id": "swp_…",
+                "state": "payout_pending",
+                "sats_out": 995,
+                "status_url": "https://kychange.com/api/swaps/swp_…?claim=clm_…"
+              }
+            }
+          }
+        }
+      },
+      {
+        "pattern": "/api/sats/1",
+        "methods": [
+          "POST"
+        ],
+        "target": {
+          "type": "function",
+          "name": "swap-usdc-in"
+        },
+        "pricing": {
+          "mode": "always",
+          "amount_usd_micros": 1000000,
+          "pay_to": "org_default_payout",
+          "networks": [
+            "testnet"
+          ],
+          "discovery": {
+            "description": "Swap $1 of USDC on Base into sats on Bitcoin Lightning: pay this route over x402, name a Lightning address or a BOLT11 invoice for exactly the quoted sats (or with no amount), and the desk pays the sats within seconds with the preimage as the receipt. Testnet instance: Base Sepolia USDC in, Lightning testnet3 sats out.",
+            "service_name": "kychange",
+            "tags": [
+              "swap",
+              "lightning",
+              "bitcoin"
+            ],
+            "input": {
+              "body_type": "json",
+              "body_schema": {
+                "type": "object",
+                "required": [
+                  "destination"
+                ],
+                "properties": {
+                  "destination": {
+                    "type": "string",
+                    "description": "A Lightning address (name@domain) or a BOLT11 invoice"
+                  },
+                  "quote_id": {
+                    "type": "string",
+                    "description": "Optional quote_id from GET /api/quote"
+                  }
+                }
+              },
+              "example": {
+                "destination": "you@getalby.com"
+              }
+            },
+            "output": {
+              "example": {
+                "swap_id": "swp_…",
+                "state": "payout_pending",
+                "sats_out": 995,
+                "status_url": "https://kychange.com/api/swaps/swp_…?claim=clm_…"
+              }
+            }
+          }
+        }
+      },
+      {
+        "pattern": "/api/sats/5",
+        "methods": [
+          "POST"
+        ],
+        "target": {
+          "type": "function",
+          "name": "swap-usdc-in"
+        },
+        "pricing": {
+          "mode": "always",
+          "amount_usd_micros": 5000000,
+          "pay_to": "org_default_payout",
+          "networks": [
+            "testnet"
+          ],
+          "discovery": {
+            "description": "Swap $5 of USDC on Base into sats on Bitcoin Lightning: pay this route over x402, name a Lightning address or a BOLT11 invoice for exactly the quoted sats (or with no amount), and the desk pays the sats within seconds with the preimage as the receipt. Testnet instance: Base Sepolia USDC in, Lightning testnet3 sats out.",
+            "service_name": "kychange",
+            "tags": [
+              "swap",
+              "lightning",
+              "bitcoin"
+            ],
+            "input": {
+              "body_type": "json",
+              "body_schema": {
+                "type": "object",
+                "required": [
+                  "destination"
+                ],
+                "properties": {
+                  "destination": {
+                    "type": "string",
+                    "description": "A Lightning address (name@domain) or a BOLT11 invoice"
+                  },
+                  "quote_id": {
+                    "type": "string",
+                    "description": "Optional quote_id from GET /api/quote"
+                  }
+                }
+              },
+              "example": {
+                "destination": "you@getalby.com"
+              }
+            },
+            "output": {
+              "example": {
+                "swap_id": "swp_…",
+                "state": "payout_pending",
+                "sats_out": 995,
+                "status_url": "https://kychange.com/api/swaps/swp_…?claim=clm_…"
+              }
+            }
+          }
         }
       }
     ]

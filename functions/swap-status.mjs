@@ -3,7 +3,7 @@
 // wrong one, a swap id reads as not found.
 
 import { timingSafeEqual } from "node:crypto";
-import { getSwap, publicSwap } from "./lib/swaps.mjs";
+import { getSwap, latestRefund, publicSwap } from "./lib/swaps.mjs";
 
 function sameToken(a, b) {
   const left = Buffer.from(String(a));
@@ -24,11 +24,23 @@ export default async function handler(req) {
     return Response.json({ error: "swap_not_found" }, { status: 404, headers });
   }
   const body = publicSwap(swap);
-  if (swap.state === "refund_due" || swap.state === "refund_pending" || swap.state === "refund_failed") {
-    body.refund = {
-      reason: swap.state_reason ?? null,
-      how: "POST /api/refunds { preimage, bolt11 } (not yet available on this instance; the operator refunds by hand)",
-    };
+  if (["refund_due", "refund_pending", "refunded", "refund_failed"].includes(swap.state)) {
+    const refund = await latestRefund(swap.swap_id);
+    body.refund = swap.direction === "usdc_in"
+      ? {
+          reason: swap.state_reason ?? null,
+          asset: "USDC",
+          amount_usd_micros: Number(swap.amount_in),
+          destination: swap.payer ?? null,
+          mode: refund?.mode ?? null,
+          reference: refund?.reference ?? null,
+          how: refund ? "recorded by the refund run" : "the refund run records (demo) or sends the USDC back to the payer",
+        }
+      : {
+          reason: swap.state_reason ?? null,
+          asset: "SAT",
+          how: "POST /api/refunds { preimage, bolt11 } (not yet available on this instance; the operator refunds by hand)",
+        };
   }
   return Response.json(body, { headers });
 }

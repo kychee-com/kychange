@@ -6,7 +6,7 @@
 import { functions, getRoutedPaymentContext } from "@run402/functions";
 import { DAILY_CAP_USD, MAX_FILL_USD, NETWORK_MODE, SPREAD_BPS, denominationById } from "./lib/config.mjs";
 import { capVerdict, formatUsd, msatToSats, usdOutMicros } from "./lib/pricing.mjs";
-import { insertSwap, newId, paidOutTodayMicros, transition, validQuote } from "./lib/swaps.mjs";
+import { insertSwap, newId, notionalTodayMicros, transition, validQuote } from "./lib/swaps.mjs";
 import { venue } from "./lib/venue.mjs";
 
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -50,7 +50,7 @@ export default async function handler(req) {
     usdOut = usdOutMicros({ sats: satsIn, btcUsd: rate, spreadBps: SPREAD_BPS });
     // The caps the quote advertises are enforced here: the money is in, so an
     // over-cap payment becomes a swap that owes a refund, never a payout.
-    const dailyRemaining = Math.max(0, DAILY_CAP_USD * 1_000_000 - await paidOutTodayMicros());
+    const dailyRemaining = Math.max(0, DAILY_CAP_USD * 1_000_000 - await notionalTodayMicros());
     const verdict = capVerdict({ usdOutMicros: usdOut, maxFillUsd: MAX_FILL_USD, dailyRemainingMicros: dailyRemaining });
     if (!verdict.available) { state = "refund_due"; reason = verdict.reason; }
   }

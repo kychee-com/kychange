@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { capVerdict, formatUsd, msatToSats, rateAfterSpread, usdOutMicros } from "./pricing.mjs";
+import { capVerdict, formatUsd, msatToSats, rateAfterSpread, satsOut, usdOutMicros } from "./pricing.mjs";
 
 describe("pricing", () => {
   it("pays out the index minus the spread, floored to a micro", () => {
@@ -10,6 +10,13 @@ describe("pricing", () => {
     assert.equal(usdOutMicros({ sats: 1, btcUsd: 100_000, spreadBps: 0 }), 1_000);
     assert.throws(() => usdOutMicros({ sats: 0, btcUsd: 100_000, spreadBps: 50 }), RangeError);
     assert.throws(() => usdOutMicros({ sats: 10, btcUsd: 100_000, spreadBps: 10_000 }), RangeError);
+  });
+
+  it("pays out sats at the ask, floored to a whole sat", () => {
+    assert.equal(satsOut({ usdMicros: 5_000_000, btcUsd: 80_000, spreadBps: 50 }), 6_218);
+    assert.equal(satsOut({ usdMicros: 100_000, btcUsd: 100_000, spreadBps: 0 }), 100);
+    assert.throws(() => satsOut({ usdMicros: 0, btcUsd: 80_000, spreadBps: 50 }), RangeError);
+    assert.throws(() => satsOut({ usdMicros: 1_000_000, btcUsd: 0, spreadBps: 50 }), RangeError);
   });
 
   it("quotes the bid below and the ask above the index", () => {

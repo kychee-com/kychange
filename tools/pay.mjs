@@ -22,12 +22,13 @@ if (!denomination || !destination || !pairingFile) {
 }
 
 const quote = await (await fetch(`${base}/api/quote`)).json();
-const offer = quote.denominations?.find((d) => d.id === denomination);
-if (!quote.open || !offer?.available) {
-  console.error("desk closed or denomination unavailable:", JSON.stringify({ open: quote.open, reason: quote.reason, denomination: offer ?? null }));
+const satsIn = quote.directions?.sats_in;
+const offer = satsIn?.denominations?.find((d) => d.id === denomination);
+if (!satsIn?.open || !offer?.available) {
+  console.error("desk closed or denomination unavailable:", JSON.stringify({ open: satsIn?.open ?? false, reason: satsIn?.reason ?? quote.reason, denomination: offer ?? null }));
   process.exit(1);
 }
-console.log(`quote: ${offer.sats_in} sats -> ${offer.usd_out} USDC at bid $${quote.rate.btc_usd_bid}/BTC (${quote.network_mode})`);
+console.log(`quote: ${offer.sats_in} sats -> ${offer.usd_out} USDC at bid ${quote.rate.btc_usd_bid}/BTC (${quote.network_mode})`);
 
 const url = `${base}${offer.route}`;
 const body = JSON.stringify(useQuote ? { destination, quote_id: quote.quote_id } : { destination });

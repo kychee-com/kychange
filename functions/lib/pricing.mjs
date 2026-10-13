@@ -13,6 +13,18 @@ export function usdOutMicros({ sats, btcUsd, spreadBps }) {
   return Math.floor(usd * 1_000_000);
 }
 
+/**
+ * Sats the desk pays out for `usdMicros`, at `btcUsd` plus `spreadBps` (the
+ * ask), floored to a whole sat. $5 at $80,000 and 50 bps is 6,218 sats.
+ */
+export function satsOut({ usdMicros, btcUsd, spreadBps }) {
+  if (!Number.isInteger(usdMicros) || usdMicros <= 0) throw new RangeError("usdMicros must be a positive integer");
+  if (!Number.isFinite(btcUsd) || btcUsd <= 0) throw new RangeError("btcUsd must be positive");
+  if (!Number.isInteger(spreadBps) || spreadBps < 0 || spreadBps >= 10_000) throw new RangeError("spreadBps must be 0..9999");
+  const ask = btcUsd * (1 + spreadBps / 10_000);
+  return Math.floor((usdMicros / 1_000_000 / ask) * SATS_PER_BTC);
+}
+
 /** The rate quoted to the buyer: the index after the spread, for the desk's side. */
 export function rateAfterSpread({ btcUsd, spreadBps, side }) {
   const factor = side === "buy_btc" ? 1 - spreadBps / 10_000 : 1 + spreadBps / 10_000;

@@ -16,13 +16,14 @@ export async function insertSwap(row) {
   const inserted = await sql(
     `INSERT INTO swaps (swap_id, direction, payment_id, payment_hash, payer, amount_in, asset_in,
                         amount_out, asset_out, destination, quote_id, rate_btc_usd, spread_bps,
-                        state, state_reason, claim_token, network_mode)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                        state, state_reason, claim_token, network_mode, tx_hash_in)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
      ON CONFLICT (payment_id) DO NOTHING
      RETURNING *`,
     [row.swap_id, row.direction, row.payment_id, row.payment_hash ?? null, row.payer ?? null,
       row.amount_in, row.asset_in, row.amount_out, row.asset_out, row.destination, row.quote_id ?? null,
-      row.rate_btc_usd, row.spread_bps, row.state, row.state_reason ?? null, row.claim_token, row.network_mode],
+      row.rate_btc_usd, row.spread_bps, row.state, row.state_reason ?? null, row.claim_token, row.network_mode,
+      row.tx_hash_in ?? null],
   );
   if (inserted.rows.length > 0) return { swap: inserted.rows[0], created: true };
   const existing = await sql(`SELECT * FROM swaps WHERE payment_id = $1`, [row.payment_id]);
@@ -34,7 +35,7 @@ export async function getSwap(swapId) {
   return result.rows[0] ?? null;
 }
 
-const PATCH_COLUMNS = new Set(["payout_run_id", "tx_hash_out", "preimage_out", "paid_out_at", "state_reason"]);
+const PATCH_COLUMNS = new Set(["payout_run_id", "tx_hash_out", "preimage_out", "paid_out_at", "state_reason", "payment_hash"]);
 
 /** Move a swap from one state to the next; null when it was not in `from`. */
 export async function transition(swapId, from, to, patch = {}) {
@@ -73,14 +74,32 @@ export async function ledger({ swap_id, asset, delta, reason, simulated }) {
   );
 }
 
-/** USD micros paid out in the rolling day, for the daily cap. */
-export async function paidOutTodayMicros() {
+/**
+ * USD notional swapped in the rolling day, both directions, for the daily
+ * cap: the USDC a sats-in swap pays out plus the USDC a usdc-in swap took in.
+ */
+export async function notionalTodayMicros() {
   const result = await sql(
-    `SELECT COALESCE(SUM(amount_out), 0)::bigint AS micros FROM swaps
-      WHERE direction = 'sats_in' AND created_at > now() - interval '1 day'
+    `SELECT COALESCE(SUM(CASE WHEN direction = 'sats_in' THEN amount_out ELSE amount_in END), 0)::bigint AS micros
+       FROM swaps
+      WHERE created_at > now() - interval '1 day'
         AND state NOT IN ('refunded', 'refund_failed')`,
   );
   return Number(result.rows[0]?.micros ?? 0);
+}
+
+export async function insertRefund({ swap_id, run_id, asset, amount, destination, mode, reference }) {
+  const refund_id = newId("rfd");
+  await sql(
+    `INSERT INTO refunds (refund_id, swap_id, run_id, asset, amount, destination, mode, reference) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [refund_id, swap_id, run_id ?? null, asset, amount, destination, mode, reference ?? null],
+  );
+  return refund_id;
+}
+
+export async function latestRefund(swapId) {
+  const result = await sql(`SELECT * FROM refunds WHERE swap_id = $1 ORDER BY created_at DESC LIMIT 1`, [swapId]);
+  return result.rows[0] ?? null;
 }
 
 export async function insertQuote(row) {
@@ -106,12 +125,18 @@ export function publicSwap(row) {
     state_reason: row.state_reason ?? null,
     sats_in: row.direction === "sats_in" ? Number(row.amount_in) : null,
     usd_out_micros: row.direction === "sats_in" ? Number(row.amount_out) : null,
+    usd_in_micros: row.direction === "usdc_in" ? Number(row.amount_in) : null,
+    sats_out: row.direction === "usdc_in" ? Number(row.amount_out) : null,
+    asset_in: row.asset_in,
     asset_out: row.asset_out,
     destination: row.destination,
+    payer: row.payer ?? null,
     rate_btc_usd: Number(row.rate_btc_usd),
     spread_bps: row.spread_bps,
     payment_hash: row.payment_hash ?? null,
+    tx_hash_in: row.tx_hash_in ?? null,
     tx_hash_out: row.tx_hash_out ?? null,
+    preimage_out: row.preimage_out ?? null,
     network_mode: row.network_mode,
     created_at: row.created_at,
     updated_at: row.updated_at,
