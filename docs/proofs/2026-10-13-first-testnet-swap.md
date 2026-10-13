@@ -47,3 +47,7 @@ Durable run `fnrun_fd1ba67b718b4233b9b87ad1` (`payout.usdc`, idempotency key = t
 ```
 
 What this does not prove: a real USDC transfer (demo mode), a hedge on a real venue (paper), or a refund.
+
+## Caps are enforced, not advisory (same day)
+
+With `MAX_FILL_USD=5` set on the instance, `GET /api/quote` listed every denomination as "closed: above the $5 cap for one swap", and a 10,000-sat payment made anyway (the gateway still mints the invoice; a priced route cannot be closed without a deploy) produced swap `swp_702715ad35d31add53b08579` in `refund_due` with `state_reason: above_max_fill` and no payout run. Its status view carries the refund instructions. The testnet instance then went back to `MAX_FILL_USD=100` and `DAILY_CAP_USD=1000`, so 10k and 100k are open and 1m stays closed as the visible example of a cap.

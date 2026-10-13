@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { formatUsd, msatToSats, rateAfterSpread, usdOutMicros } from "./pricing.mjs";
+import { capVerdict, formatUsd, msatToSats, rateAfterSpread, usdOutMicros } from "./pricing.mjs";
 
 describe("pricing", () => {
   it("pays out the index minus the spread, floored to a micro", () => {
@@ -22,5 +22,17 @@ describe("pricing", () => {
     assert.equal(formatUsd(1_000), "$0.00");
     assert.equal(msatToSats(10_000_000), 10_000);
     assert.throws(() => msatToSats(10_500), RangeError);
+  });
+});
+
+describe("capVerdict", () => {
+  it("closes a denomination above the per-swap cap, then above the daily remainder, in that order", () => {
+    assert.deepEqual(capVerdict({ usdOutMicros: 83_000_000, maxFillUsd: 25, dailyRemainingMicros: 100_000_000 }), {
+      available: false, reason: "above_max_fill", reason_text: "closed: above the $25 cap for one swap",
+    });
+    const daily = capVerdict({ usdOutMicros: 8_000_000, maxFillUsd: 25, dailyRemainingMicros: 5_000_000 });
+    assert.equal(daily.reason, "daily_cap");
+    assert.match(daily.reason_text, /\$5\.00 left today/);
+    assert.deepEqual(capVerdict({ usdOutMicros: 8_000_000, maxFillUsd: 25, dailyRemainingMicros: 100_000_000 }), { available: true, reason: null, reason_text: null });
   });
 });

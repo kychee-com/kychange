@@ -4,9 +4,9 @@
 // leg to a durable run. An unusable request becomes a swap in `refund_due`.
 
 import { functions, getRoutedPaymentContext } from "@run402/functions";
-import { NETWORK_MODE, SPREAD_BPS, denominationById } from "./lib/config.mjs";
-import { formatUsd, msatToSats, usdOutMicros } from "./lib/pricing.mjs";
-import { insertSwap, newId, transition, validQuote } from "./lib/swaps.mjs";
+import { DAILY_CAP_USD, MAX_FILL_USD, NETWORK_MODE, SPREAD_BPS, denominationById } from "./lib/config.mjs";
+import { capVerdict, formatUsd, msatToSats, usdOutMicros } from "./lib/pricing.mjs";
+import { insertSwap, newId, paidOutTodayMicros, transition, validQuote } from "./lib/swaps.mjs";
 import { venue } from "./lib/venue.mjs";
 
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -46,7 +46,14 @@ export default async function handler(req) {
   let usdOut = 0;
   if (!validDestination) { state = "refund_due"; reason = "invalid_destination"; }
   else if (!(rate > 0) || satsIn <= 0) { state = "refund_due"; reason = "venue_down"; }
-  else usdOut = usdOutMicros({ sats: satsIn, btcUsd: rate, spreadBps: SPREAD_BPS });
+  else {
+    usdOut = usdOutMicros({ sats: satsIn, btcUsd: rate, spreadBps: SPREAD_BPS });
+    // The caps the quote advertises are enforced here: the money is in, so an
+    // over-cap payment becomes a swap that owes a refund, never a payout.
+    const dailyRemaining = Math.max(0, DAILY_CAP_USD * 1_000_000 - await paidOutTodayMicros());
+    const verdict = capVerdict({ usdOutMicros: usdOut, maxFillUsd: MAX_FILL_USD, dailyRemainingMicros: dailyRemaining });
+    if (!verdict.available) { state = "refund_due"; reason = verdict.reason; }
+  }
 
   const { swap, created } = await insertSwap({
     swap_id: newId("swp"), direction: "sats_in",

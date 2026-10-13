@@ -31,3 +31,18 @@ export function msatToSats(msat) {
   if (!Number.isInteger(msat) || msat <= 0 || msat % 1000 !== 0) throw new RangeError("msat must be a positive multiple of 1000");
   return msat / 1000;
 }
+
+/**
+ * Whether a payout of `usdOutMicros` fits the desk's caps. The verdict is the
+ * same for the quote (which marks a denomination unavailable) and the swap
+ * (which parks an over-cap payment in `refund_due`), so the two never disagree.
+ */
+export function capVerdict({ usdOutMicros, maxFillUsd, dailyRemainingMicros }) {
+  if (usdOutMicros > maxFillUsd * 1_000_000) {
+    return { available: false, reason: "above_max_fill", reason_text: `closed: above the $${maxFillUsd} cap for one swap` };
+  }
+  if (usdOutMicros > dailyRemainingMicros) {
+    return { available: false, reason: "daily_cap", reason_text: `closed: the desk's daily cap is reached (${formatUsd(dailyRemainingMicros)} left today)` };
+  }
+  return { available: true, reason: null, reason_text: null };
+}

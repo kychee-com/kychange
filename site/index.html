@@ -33,10 +33,10 @@
     const q = await (await fetch("/api/quote", { cache: "no-store" })).json();
     mode.innerHTML = q.open
       ? `<span class="open">Open</span> on <b>${q.network_mode}</b> · bid $${q.rate.btc_usd_bid.toLocaleString()} per BTC (index $${q.rate.btc_usd_index.toLocaleString()} − ${q.rate.spread_bps} bps, ${q.rate.venue}) · quote ${q.quote_id} valid until ${new Date(q.valid_until).toLocaleTimeString()}`
-      : `<span class="closed">Closed</span>: ${q.reason}${q.message ? " — " + q.message : ""}`;
+      : `<span class="closed">${q.reason_text ?? "Closed: " + q.reason}</span>${q.message ? " — " + q.message : ""}`;
     for (const d of q.denominations ?? []) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td><code>POST ${d.route}</code></td><td>${d.sats_in.toLocaleString()} sats</td><td>${d.usd_out} USDC</td><td>${d.available ? "available" : d.reason}</td>`;
+      tr.innerHTML = `<td><code>POST ${d.route}</code></td><td>${d.sats_in.toLocaleString()} sats</td><td>${d.usd_out} USDC</td><td>${d.available ? "open" : (d.reason_text ?? d.reason)}</td>`;
       tbody.appendChild(tr);
     }
   } catch (e) { mode.innerHTML = `<span class="closed">Could not load the quote.</span>`; }

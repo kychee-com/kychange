@@ -6,7 +6,7 @@
 import {
   DAILY_CAP_USD, DENOMINATIONS, LNBTC_NETWORKS, MAX_FILL_USD, NETWORK_MODE, QUOTE_TTL_SECONDS, SPREAD_BPS,
 } from "./lib/config.mjs";
-import { formatUsd, rateAfterSpread, usdOutMicros } from "./lib/pricing.mjs";
+import { capVerdict, formatUsd, rateAfterSpread, usdOutMicros } from "./lib/pricing.mjs";
 import { insertQuote, newId, paidOutTodayMicros } from "./lib/swaps.mjs";
 import { venue } from "./lib/venue.mjs";
 
@@ -21,6 +21,7 @@ export default async function handler(req) {
   } catch (error) {
     return Response.json({
       open: false, reason: "venue_down", network_mode: NETWORK_MODE, direction: "sats_in",
+      reason_text: "closed: the index price is unavailable",
       message: String(error?.message ?? error),
     }, { headers });
   }
@@ -35,18 +36,17 @@ export default async function handler(req) {
   });
   const denominations = DENOMINATIONS.map((d) => {
     const micros = usdOutMicros({ sats: d.sats, btcUsd: index.price, spreadBps: SPREAD_BPS });
-    const aboveFill = micros > MAX_FILL_USD * 1_000_000;
-    const aboveDaily = micros > dailyRemaining;
+    const verdict = capVerdict({ usdOutMicros: micros, maxFillUsd: MAX_FILL_USD, dailyRemainingMicros: dailyRemaining });
     return {
       id: d.id, sats_in: d.sats, usd_out_micros: micros, usd_out: formatUsd(micros),
       route: `/api/usdc/${d.id}`, method: "POST",
-      available: !aboveFill && !aboveDaily,
-      reason: aboveFill ? "above_max_fill" : aboveDaily ? "daily_cap" : null,
+      available: verdict.available, reason: verdict.reason, reason_text: verdict.reason_text,
     };
   });
   const open = denominations.some((d) => d.available);
   return Response.json({
-    open, reason: open ? null : "caps", direction: "sats_in", network_mode: NETWORK_MODE,
+    open, reason: open ? null : "caps", reason_text: open ? null : "closed: every denomination is above a cap right now",
+    direction: "sats_in", network_mode: NETWORK_MODE,
     lightning_network: LNBTC_NETWORKS[NETWORK_MODE] ?? null,
     quote_id: quoteId, valid_until: validUntil,
     rate: { btc_usd_index: index.price, btc_usd_bid: bid, spread_bps: SPREAD_BPS, venue: index.venueRef, as_of: index.asOf },
