@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kychange — sats in, USDC out</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+  body { max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  table { border-collapse: collapse; width: 100%; } td, th { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid #8884; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; } pre { overflow-x: auto; padding: .8rem; background: #8881; }
+  .closed { color: #c33; } .open { color: #3a3; } small { opacity: .75; }
+</style>
+</head>
+<body>
+<h1>kychange</h1>
+<p>A swap desk between the two rails x402 settles on: pay sats over Bitcoin Lightning, receive USDC on Base. One priced route per denomination; the invoice is minted by Run402 through the desk's receive-only node pairing, and the sats land on the desk's node, never on Run402.</p>
+<p id="mode"><small>Loading the desk's state…</small></p>
+<table id="denominations"><thead><tr><th>Route</th><th>You pay</th><th>You receive</th><th>Status</th></tr></thead><tbody></tbody></table>
+<h2>How to swap</h2>
+<ol>
+  <li><code>GET /api/quote</code> for the open denominations and a <code>quote_id</code>.</li>
+  <li><code>POST /api/usdc/10k</code> with <code>{"destination":"0x…"}</code>. The 402 carries one x402 <code>exact</code> entry on <code>lnbtc</code> whose invoice is bound to this exact request; pay it with any Lightning wallet and retry with the preimage.</li>
+  <li>The 202 names the swap and a <code>status_url</code>. Watch it on <a href="/status">the status page</a> until <code>paid_out</code>.</li>
+</ol>
+<p>From the command line: <code>node tools/pay.mjs 10k 0xYourAddress --pairing ./payer.nwc</code> in the <a href="https://github.com/kychee-com/kychange">kychange repo</a> pays the invoice with a Nostr Wallet Connect pairing. See <code>docs/try-it.md</code> for testnet sats.</p>
+<p><small>This instance runs on testnet: Lightning testnet3 and Base Sepolia, no real money. The payout is recorded in demo mode (a simulated transfer); the hedge is paper. Run402 takes no cut and holds only a receive-only pairing; the operator is the counterparty.</small></p>
+<script>
+(async () => {
+  const mode = document.getElementById("mode");
+  const tbody = document.querySelector("#denominations tbody");
+  try {
+    const q = await (await fetch("/api/quote", { cache: "no-store" })).json();
+    mode.innerHTML = q.open
+      ? `<span class="open">Open</span> on <b>${q.network_mode}</b> · bid $${q.rate.btc_usd_bid.toLocaleString()} per BTC (index $${q.rate.btc_usd_index.toLocaleString()} − ${q.rate.spread_bps} bps, ${q.rate.venue}) · quote ${q.quote_id} valid until ${new Date(q.valid_until).toLocaleTimeString()}`
+      : `<span class="closed">Closed</span>: ${q.reason}${q.message ? " — " + q.message : ""}`;
+    for (const d of q.denominations ?? []) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td><code>POST ${d.route}</code></td><td>${d.sats_in.toLocaleString()} sats</td><td>${d.usd_out} USDC</td><td>${d.available ? "available" : d.reason}</td>`;
+      tbody.appendChild(tr);
+    }
+  } catch (e) { mode.innerHTML = `<span class="closed">Could not load the quote.</span>`; }
+})();
+</script>
+</body>
+</html>

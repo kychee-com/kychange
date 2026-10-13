@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kychange — swap status</title>
+<style>
+  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+  body { max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  pre { overflow-x: auto; padding: .8rem; background: #8881; font-size: .9em; }
+  label { display: block; margin: .4rem 0; } input { width: 100%; max-width: 40rem; }
+</style>
+</head>
+<body>
+<h1>Swap status</h1>
+<form id="f"><label>Swap id <input name="swap" placeholder="swp_…"></label><label>Claim token <input name="claim" placeholder="clm_…"></label><button>Watch</button></form>
+<p id="state"></p>
+<pre id="out"></pre>
+<p><a href="/">← kychange</a></p>
+<script>
+const params = new URLSearchParams(location.search);
+const form = document.getElementById("f");
+form.swap.value = params.get("swap") ?? ""; form.claim.value = params.get("claim") ?? "";
+const terminal = new Set(["paid_out", "refunded", "refund_failed", "stuck"]);
+let timer = null;
+async function poll() {
+  const swap = form.swap.value.trim(), claim = form.claim.value.trim();
+  if (!swap || !claim) return;
+  const r = await fetch(`/api/swaps/${encodeURIComponent(swap)}?claim=${encodeURIComponent(claim)}`, { cache: "no-store" });
+  const j = await r.json();
+  document.getElementById("out").textContent = JSON.stringify(j, null, 2);
+  document.getElementById("state").textContent = r.ok ? `State: ${j.state}${j.state_reason ? " (" + j.state_reason + ")" : ""}` : `Not found (${r.status})`;
+  if (!r.ok || terminal.has(j.state)) { clearInterval(timer); timer = null; }
+}
+form.addEventListener("submit", (e) => { e.preventDefault(); history.replaceState(null, "", `?swap=${encodeURIComponent(form.swap.value)}&claim=${encodeURIComponent(form.claim.value)}`); if (timer) clearInterval(timer); poll(); timer = setInterval(poll, 3000); });
+if (form.swap.value && form.claim.value) { poll(); timer = setInterval(poll, 3000); }
+</script>
+</body>
+</html>

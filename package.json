@@ -1,0 +1,21 @@
+{
+  "name": "kychange",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A swap desk between USDC on Base and sats on Lightning, as a Run402 application.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test functions/lib/*.test.mjs",
+    "check": "npm run build && run402 up --check --manifest run402.json --dir .",
+    "deploy": "npm run build && run402 up --manifest run402.json --dir . -y",
+    "pay": "node tools/pay.mjs"
+  },
+  "dependencies": {
+    "@run402/sdk": "^4.117.0"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

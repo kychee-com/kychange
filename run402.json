@@ -1,0 +1,148 @@
+{
+  "$schema": "https://run402.com/schemas/release-spec.v1.json",
+  "database": {
+    "migrations": [
+      {
+        "id": "001_swaps",
+        "sql_path": "db/001_swaps.sql"
+      }
+    ]
+  },
+  "functions": {
+    "replace": {
+      "quote": {
+        "runtime": "node22",
+        "config": {
+          "timeout_seconds": 10,
+          "memory_mb": 128
+        },
+        "source": {
+          "path": "dist/quote.mjs"
+        }
+      },
+      "swap-sats-in": {
+        "runtime": "node22",
+        "config": {
+          "timeout_seconds": 10,
+          "memory_mb": 128
+        },
+        "source": {
+          "path": "dist/swap-sats-in.mjs"
+        }
+      },
+      "swap-status": {
+        "runtime": "node22",
+        "config": {
+          "timeout_seconds": 10,
+          "memory_mb": 128
+        },
+        "source": {
+          "path": "dist/swap-status.mjs"
+        }
+      },
+      "payout-usdc": {
+        "runtime": "node22",
+        "config": {
+          "timeout_seconds": 30,
+          "memory_mb": 128
+        },
+        "source": {
+          "path": "dist/payout-usdc.mjs"
+        }
+      }
+    }
+  },
+  "routes": {
+    "replace": [
+      {
+        "pattern": "/api/quote",
+        "methods": [
+          "GET"
+        ],
+        "target": {
+          "type": "function",
+          "name": "quote"
+        }
+      },
+      {
+        "pattern": "/api/swaps/*",
+        "methods": [
+          "GET"
+        ],
+        "target": {
+          "type": "function",
+          "name": "swap-status"
+        }
+      },
+      {
+        "pattern": "/api/usdc/10k",
+        "methods": [
+          "POST"
+        ],
+        "target": {
+          "type": "function",
+          "name": "swap-sats-in"
+        },
+        "pricing": {
+          "mode": "always",
+          "amount_usd_micros": 10000000,
+          "amount_msat": 10000000,
+          "pay_to": "org_default_payout",
+          "networks": [
+            "lightning-testnet"
+          ]
+        }
+      },
+      {
+        "pattern": "/api/usdc/100k",
+        "methods": [
+          "POST"
+        ],
+        "target": {
+          "type": "function",
+          "name": "swap-sats-in"
+        },
+        "pricing": {
+          "mode": "always",
+          "amount_usd_micros": 100000000,
+          "amount_msat": 100000000,
+          "pay_to": "org_default_payout",
+          "networks": [
+            "lightning-testnet"
+          ]
+        }
+      },
+      {
+        "pattern": "/api/usdc/1m",
+        "methods": [
+          "POST"
+        ],
+        "target": {
+          "type": "function",
+          "name": "swap-sats-in"
+        },
+        "pricing": {
+          "mode": "always",
+          "amount_usd_micros": 1000000000,
+          "amount_msat": 1000000000,
+          "pay_to": "org_default_payout",
+          "networks": [
+            "lightning-testnet"
+          ]
+        }
+      }
+    ]
+  },
+  "site": {
+    "replace": {
+      "index.html": {
+        "path": "site/index.html",
+        "content_type": "text/html"
+      },
+      "status.html": {
+        "path": "site/status.html",
+        "content_type": "text/html"
+      }
+    }
+  }
+}

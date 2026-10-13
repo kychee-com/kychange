@@ -4,7 +4,7 @@ kychange is a swap desk between the two rails x402 settles on: USDC on Base and 
 
 It is a desk, not an order book. The operator holds inventory on both sides, quotes a rate from a hedge venue plus a spread, sells fixed denominations, and back-to-backs each fill on that venue. Run402 never holds the funds on either leg; the operator's wallets receive and pay.
 
-Status: design. The sats-in direction depends on a Run402 change, `tenant-lnbtc-priced-routes`, that lets a priced route accept x402 `exact` on `lnbtc` through the organization's own receiver. The USDC-in direction needs nothing new.
+Status: Route B (sats in, USDC out) runs on the testnet instance on top of Run402's `tenant-lnbtc-priced-routes`, which lets a priced route accept x402 `exact` on `lnbtc` through the organization's own receiver; its payout is demo mode (a simulated transfer) and its hedge is paper. Route A, the hot-EOA USDC transfer, and preimage refunds are not built yet. The USDC-in direction needs nothing new from the platform.
 
 ## Topology
 
@@ -144,7 +144,8 @@ Architectural facts, stated the same way everywhere: Run402 never holds the fund
 
 ## Open items
 
-- `tenant-lnbtc-priced-routes` in run402-private: the platform change Route B needs.
+- `PAYOUT_MODE=base`: the hot-EOA ERC-20 transfer over viem, with the nonce lock and the confirmation follow-up run.
+- Route A and the refund claim (`POST /api/refunds`).
 - The `lnbtc` test network id after testnet3; upstream.
 - `proven-payout-address`: lets the hot wallet receive directly.
 - A way to close a priced route without a deploy; feedback to the platform.
