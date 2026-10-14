@@ -16,38 +16,42 @@ const recorder = (handler) => {
 };
 
 describe("transferUsdc", () => {
-  it("submits transfer(to, amount) on Sepolia USDC through the signer with the idempotency key and the service key", async () => {
-    const { calls, fetchImpl } = recorder(() => respond(202, { call_id: "call_1", tx_hash: HASH, status: "pending" }));
+  it("posts a gasless USDC transfer to the signer's transfer route with the idempotency key and the service key", async () => {
+    const { calls, fetchImpl } = recorder(() => respond(200, { transfer_id: "txf_1", tx_hash: HASH, status: "settled" }));
     const result = await transferUsdc({ to: TO, amountMicros: 83_000, idempotencyKey: "payout:swp_1", fetchImpl, env });
-    assert.deepEqual(result, { callId: "call_1", txHash: HASH, status: "pending" });
-    assert.equal(calls[0].url, "https://api.test.example/contracts/v1/call");
+    assert.deepEqual({ callId: result.callId, txHash: result.txHash, status: result.status }, { callId: "txf_1", txHash: HASH, status: "confirmed" });
+    assert.equal(calls[0].url, "https://api.test.example/contracts/v1/signers/sgn_test/transfers");
     assert.equal(calls[0].init.headers.authorization, "Bearer sk_test_service");
     assert.equal(calls[0].init.headers["idempotency-key"], "payout:swp_1");
-    const body = JSON.parse(calls[0].init.body);
-    assert.equal(body.signer_id, "sgn_test");
-    assert.equal(body.chain, "base-sepolia");
-    assert.equal(body.contract_address, "0x036CbD53842c5426634e7929541eC2318f3dCF7e");
-    assert.equal(body.function_name, "transfer");
-    assert.deepEqual(body.args, [TO, "83000"]);
-    assert.equal(body.abi_fragment[0].name, "transfer");
+    assert.deepEqual(JSON.parse(calls[0].init.body), { chain: "base-sepolia", asset: "usdc", to: TO, amount: "83000" });
+    const unknown = await transferUsdc({ to: TO, amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => respond(202, { transfer_id: "txf_2", tx_hash: null, status: "unknown" }) });
+    assert.equal(unknown.status, "pending", "an unknown settle outcome is pending to the run; the next attempt polls it");
   });
 
-  it("adopts the call a conflicting replay names, and refuses one that died before broadcast", async () => {
-    const adopted = await transferUsdc({ to: TO, amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => respond(409, { error: "idempotency_key_conflict", call_id: "call_old", status: "confirmed", tx_hash: HASH }) });
-    assert.deepEqual(adopted, { callId: "call_old", txHash: HASH, status: "confirmed" });
+  it("adopts the transfer a conflicting replay names, and refuses one that died in settlement", async () => {
+    const adopted = await transferUsdc({ to: TO, amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => respond(409, { error: "idempotency_key_conflict", transfer_id: "txf_old", status: "settled", tx_hash: HASH }) });
+    assert.deepEqual({ callId: adopted.callId, txHash: adopted.txHash, status: adopted.status }, { callId: "txf_old", txHash: HASH, status: "confirmed" });
     await assert.rejects(
-      transferUsdc({ to: TO, amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => respond(409, { error: "idempotency_key_conflict", call_id: "call_dead", status: "failed", call_error: "estimate reverted", tx_hash: null }) }),
+      transferUsdc({ to: TO, amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => respond(409, { error: "idempotency_key_conflict", transfer_id: "txf_dead", status: "failed", tx_hash: null }) }),
       (error) => error instanceof BaseCallError && error.code === "transfer_failed" && error.retryable === false,
     );
   });
 
-  it("tells a retryable pre-broadcast failure from a refused signer and from bad input", async () => {
+  it("tells a retryable facilitator refusal from an inventory shortfall, a refused signer, and bad input", async () => {
     await assert.rejects(
-      transferUsdc({ to: TO, amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => respond(502, { call_id: "call_x", status: "failed", error: "rpc timeout", retryable: true }) }),
-      (error) => error instanceof BaseCallError && error.code === "transfer_failed" && error.retryable === true,
+      transferUsdc({ to: TO, amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => respond(422, { code: "TRANSFER_FAILED", message: "the facilitator refused the transfer: invalid_signature", retryable: true }) }),
+      (error) => error instanceof BaseCallError && error.code === "transfer_refused" && error.retryable === true,
     );
     await assert.rejects(
-      transferUsdc({ to: TO, amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => respond(403, { error: "signer_suspended", message: "rent unpaid" }) }),
+      transferUsdc({ to: TO, amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => respond(409, { code: "TRANSFER_INSUFFICIENT_BALANCE", message: "the signer holds 0" }) }),
+      (error) => error instanceof BaseCallError && error.code === "insufficient_balance" && error.retryable === false,
+    );
+    await assert.rejects(
+      transferUsdc({ to: TO, amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => respond(502, { code: "TRANSFER_FAILED", message: "settlement failed: reverted", retryable: false }) }),
+      (error) => error instanceof BaseCallError && error.code === "transfer_failed" && error.retryable === false,
+    );
+    await assert.rejects(
+      transferUsdc({ to: TO, amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => respond(403, { error: "signer_suspended_unpaid_rent" }) }),
       (error) => error instanceof BaseCallError && error.code === "signer_refused" && error.retryable === false,
     );
     await assert.rejects(transferUsdc({ to: "nope", amountMicros: 1, idempotencyKey: "k", env, fetchImpl: async () => { throw new Error("never"); } }), (error) => error.code === "invalid_destination");
@@ -56,21 +60,23 @@ describe("transferUsdc", () => {
   });
 });
 
-describe("call status and inventory", () => {
-  it("reads a call and waits for it to leave pending", async () => {
+describe("transfer status and inventory", () => {
+  it("reads a transfer and waits for it to leave pending or unknown", async () => {
     let reads = 0;
-    const fetchImpl = async () => { reads += 1; return respond(200, { id: "call_1", status: reads < 3 ? "pending" : "confirmed", tx_hash: HASH, gas_cost_usd_micros: 12, receipt: { blockNumber: "0x1" }, error: null }); };
-    const first = await callStatus("call_1", { fetchImpl, env });
+    const urls = [];
+    const fetchImpl = async (url) => { urls.push(url); reads += 1; return respond(200, { transfer_id: "txf_1", status: reads < 3 ? "unknown" : "settled", tx_hash: HASH }); };
+    const first = await callStatus("txf_1", { fetchImpl, env });
     assert.equal(first.status, "pending");
-    const settled = await waitForCall("call_1", { fetchImpl, env, sleep: async () => undefined, budgetMs: 60_000 });
-    assert.deepEqual({ status: settled.status, txHash: settled.txHash, gas: settled.gasCostUsdMicros }, { status: "confirmed", txHash: HASH, gas: 12 });
+    assert.equal(urls[0], "https://api.test.example/contracts/v1/signers/sgn_test/transfers/txf_1");
+    const settled = await waitForCall("txf_1", { fetchImpl, env, sleep: async () => undefined, budgetMs: 60_000 });
+    assert.deepEqual({ status: settled.status, txHash: settled.txHash }, { status: "confirmed", txHash: HASH });
     assert.equal(reads, 3);
   });
 
-  it("stops at the budget while still pending, and names an unknown call", async () => {
-    const pending = await waitForCall("call_2", { env, sleep: async () => undefined, budgetMs: 0, fetchImpl: async () => respond(200, { id: "call_2", status: "pending", tx_hash: null }) });
+  it("stops at the budget while still pending, and names an unknown transfer", async () => {
+    const pending = await waitForCall("txf_2", { env, sleep: async () => undefined, budgetMs: 0, fetchImpl: async () => respond(200, { transfer_id: "txf_2", status: "pending", tx_hash: null }) });
     assert.equal(pending.status, "pending");
-    await assert.rejects(callStatus("call_9", { env, fetchImpl: async () => respond(404, { error: "call_not_found" }) }), (error) => error.code === "call_not_found");
+    await assert.rejects(callStatus("txf_9", { env, fetchImpl: async () => respond(404, { code: "TRANSFER_NOT_FOUND" }) }), (error) => error.code === "call_not_found");
   });
 
   it("reads the signer's USDC balance anonymously and answers null inventory when it cannot", async () => {
