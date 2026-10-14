@@ -15,6 +15,7 @@
 <h1>Swap status</h1>
 <form id="f"><label>Swap id <input name="swap" placeholder="swp_…"></label><label>Claim token <input name="claim" placeholder="clm_…"></label><button>Watch</button></form>
 <p id="state"></p>
+<p id="links"></p>
 <pre id="out"></pre>
 <p><a href="/">← kychange</a></p>
 <script>
@@ -29,6 +30,11 @@ async function poll() {
   const r = await fetch(`/api/swaps/${encodeURIComponent(swap)}?claim=${encodeURIComponent(claim)}`, { cache: "no-store" });
   const j = await r.json();
   document.getElementById("out").textContent = JSON.stringify(j, null, 2);
+  const explorer = j.network_mode === "mainnet" ? "https://basescan.org" : "https://sepolia.basescan.org";
+  const links = [["USDC in", j.tx_hash_in], ["USDC out", j.tx_hash_out], ["USDC refund", j.refund?.reference]]
+    .filter(([, h]) => typeof h === "string" && /^0x[0-9a-fA-F]{64}$/.test(h))
+    .map(([label, h]) => `<a href="${explorer}/tx/${h}" target="_blank" rel="noopener">${label} on Basescan</a>`);
+  document.getElementById("links").innerHTML = links.join(" · ");
   document.getElementById("state").textContent = r.ok ? `State: ${j.state}${j.state_reason ? " (" + j.state_reason + ")" : ""}` : `Not found (${r.status})`;
   if (!r.ok || terminal.has(j.state)) { clearInterval(timer); timer = null; }
 }

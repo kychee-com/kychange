@@ -4,7 +4,7 @@ kychange is a swap desk between the two rails x402 settles on: USDC on Base and 
 
 It is a desk, not an order book. The operator holds inventory on both sides, quotes a rate from a hedge venue plus a spread, sells fixed denominations, and back-to-backs each fill on that venue. Run402 never holds the funds on either leg; the operator's wallets receive and pay.
 
-Status: both routes run on the testnet instance. Route B (sats in, USDC out) rides Run402's priced routes on `lnbtc`, which let a priced route accept x402 `exact` on Lightning through the organization's own receiver; its payout is demo mode (a simulated transfer). Route A (USDC in, sats out) rides an ordinary USDC-priced route; the payout run resolves the buyer's Lightning address (LNURL-pay) or invoice and pays it through the desk's spend-capped NWC pairing, and a swap the desk cannot pay is refunded in demo mode. The hedge is paper. The hot-EOA USDC transfer and preimage refunds of sats are not built yet.
+Status: both routes run on the testnet instance. Route B (sats in, USDC out) rides Run402's priced routes on `lnbtc`, which let a priced route accept x402 `exact` on Lightning through the organization's own receiver; its USDC payout is a transfer from the desk's Run402 KMS signer in `base` mode (idempotent on the swap through the platform's contract-call route, inventory read before a buyer pays) or a record in `demo` mode. Route A (USDC in, sats out) rides an ordinary USDC-priced route; the payout run resolves the buyer's Lightning address (LNURL-pay) or invoice and pays it through the desk's spend-capped NWC pairing, and a swap the desk cannot pay is refunded through the same signer. The hedge is paper. Preimage refunds of sats are not built yet.
 
 ## Topology
 
@@ -145,7 +145,8 @@ Architectural facts, stated the same way everywhere: Run402 never holds the fund
 ## Open items
 
 - `PAYOUT_MODE=base`: the hot-EOA ERC-20 transfer over viem, with the nonce lock and the confirmation follow-up run.
-- The refund claim for sats (`POST /api/refunds`); USDC refunds are demo-mode records until `PAYOUT_MODE=base`.
+- The refund claim for sats (`POST /api/refunds`).
+- Letting the organization's payout wallet be the signer itself, so USDC-in receipts become inventory without a sweep.
 - The `lnbtc` test network id after testnet3; upstream.
 - `proven-payout-address`: lets the hot wallet receive directly.
 - A way to close a priced route without a deploy; feedback to the platform.

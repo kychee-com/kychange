@@ -1,6 +1,6 @@
 # Try it on testnet
 
-The public instance at kychange.com runs both directions on testnet: Lightning testnet3 against the desk's own node and Base Sepolia USDC through the x402 facilitator. The USDC leg (payout and refund) is recorded in demo mode, a simulated transfer on the swap; the sats leg is a real testnet3 Lightning payment; the hedge is paper. No real money is involved anywhere.
+The public instance at kychange.com runs both directions on testnet: Lightning testnet3 against the desk's own node and Base Sepolia USDC through the x402 facilitator. The sats leg is a real testnet3 Lightning payment; the USDC leg (payout and refund) is a real Base Sepolia transfer from the desk's signer when the quote reports `payout_mode: "base"`, and a simulated record when it reports `demo`; the hedge is paper. No real money is involved anywhere.
 
 ## What you need
 
@@ -34,9 +34,9 @@ Every 202 carries a `claim_token`; the status page at `/status?swap=<swap_id>&cl
 | `state` | `payout_pending` right after the 202, then `paid_out`; or `refund_due` → `refunded` when the desk could not pay (`state_reason` says why) |
 | `preimage_out` | sats out: the preimage of your invoice, the proof the sats arrived |
 | `tx_hash_in` | USDC in: the Base Sepolia transaction that paid the route |
-| `tx_hash_out` | sats in: on this instance `simulated:<sha256>`; on a mainnet operator's instance, the Base transaction hash |
+| `tx_hash_out` | sats in: the Base transaction that paid you (`simulated:<sha256>` while the instance runs in demo mode) |
 | `payment_hash` | the Lightning payment hash of the leg that moved sats (in or out) |
-| `refund` | for a `usdc_in` swap the desk could not pay: the amount, the payer it goes back to, and the recorded (demo) reference |
+| `refund` | for a `usdc_in` swap the desk could not pay: the amount, the payer it goes back to, and the reference (the Base transaction, or a `simulated:` record in demo mode) |
 
 ## Discovery
 
@@ -44,6 +44,5 @@ Every 202 carries a `claim_token`; the status page at `/status?swap=<swap_id>&cl
 
 ## What you cannot do yet
 
-- Receive or be refunded real USDC: both are demo mode until the hot-EOA transfer is wired (`PAYOUT_MODE=base`).
 - Claim a sats refund with a preimage: `POST /api/refunds` is not built; the operator refunds by hand.
 - Swap an arbitrary amount: denominations only.

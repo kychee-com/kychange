@@ -4,7 +4,8 @@
 // leg to a durable run. An unusable request becomes a swap in `refund_due`.
 
 import { functions, getRoutedPaymentContext } from "@run402/functions";
-import { DAILY_CAP_USD, MAX_FILL_USD, NETWORK_MODE, SPREAD_BPS, denominationById } from "./lib/config.mjs";
+import { inventoryMicros } from "./lib/base.mjs";
+import { DAILY_CAP_USD, MAX_FILL_USD, NETWORK_MODE, PAYOUT_MODE, SPREAD_BPS, denominationById, payoutSignerConfigured } from "./lib/config.mjs";
 import { capVerdict, formatUsd, msatToSats, usdOutMicros } from "./lib/pricing.mjs";
 import { insertSwap, newId, notionalTodayMicros, transition, validQuote } from "./lib/swaps.mjs";
 import { venue } from "./lib/venue.mjs";
@@ -53,6 +54,15 @@ export default async function handler(req) {
     const dailyRemaining = Math.max(0, DAILY_CAP_USD * 1_000_000 - await notionalTodayMicros());
     const verdict = capVerdict({ usdOutMicros: usdOut, maxFillUsd: MAX_FILL_USD, dailyRemainingMicros: dailyRemaining });
     if (!verdict.available) { state = "refund_due"; reason = verdict.reason; }
+    else if (PAYOUT_MODE === "base") {
+      // The quote closed this before payment; the same verdict here is the backstop.
+      if (!payoutSignerConfigured()) { state = "refund_due"; reason = "payout_unavailable"; }
+      else {
+        const inventory = await inventoryMicros();
+        if (inventory === null) { state = "refund_due"; reason = "payout_unavailable"; }
+        else if (usdOut > inventory) { state = "refund_due"; reason = "inventory_short"; }
+      }
+    }
   }
 
   const { swap, created } = await insertSwap({

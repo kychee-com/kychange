@@ -3,9 +3,10 @@
 // because a priced route cannot be closed without a deploy; a buyer who pays
 // while closed is refunded by the refund run.
 
+import { inventoryMicros } from "./lib/base.mjs";
 import {
   BOLT11_CURRENCY, DAILY_CAP_USD, DENOMINATIONS, DENOMINATIONS_USD, EVM_NETWORKS, LNBTC_NETWORKS, MAX_FILL_USD, NETWORK_MODE,
-  PAYOUT_MAX_SATS_PER_RUN, QUOTE_TTL_SECONDS, SPREAD_BPS, payoutPairing,
+  PAYOUT_MAX_SATS_PER_RUN, PAYOUT_MODE, QUOTE_TTL_SECONDS, SPREAD_BPS, payoutPairing, payoutSignerConfigured,
 } from "./lib/config.mjs";
 import { capVerdict, formatUsd, rateAfterSpread, satsOut, usdOutMicros } from "./lib/pricing.mjs";
 import { insertQuote, newId, notionalTodayMicros } from "./lib/swaps.mjs";
@@ -39,10 +40,19 @@ export default async function handler(req) {
     spread_bps: SPREAD_BPS, rate: bid, valid_until: validUntil,
   });
 
-  // Route B: sats in, USDC out, at the bid.
+  // Route B: sats in, USDC out, at the bid. In base mode the desk's USDC
+  // inventory is the signer's balance, read now, so a buyer never pays for a
+  // payout the desk cannot make.
+  const baseMode = PAYOUT_MODE === "base";
+  const inventory = baseMode && payoutSignerConfigured() ? await inventoryMicros() : null;
   const satsIn = DENOMINATIONS.map((d) => {
     const micros = usdOutMicros({ sats: d.sats, btcUsd: index.price, spreadBps: SPREAD_BPS });
-    const verdict = capVerdict({ usdOutMicros: micros, maxFillUsd: MAX_FILL_USD, dailyRemainingMicros: dailyRemaining });
+    let verdict = capVerdict({ usdOutMicros: micros, maxFillUsd: MAX_FILL_USD, dailyRemainingMicros: dailyRemaining });
+    if (verdict.available && baseMode) {
+      if (!payoutSignerConfigured()) verdict = { available: false, reason: "payout_unavailable", reason_text: "closed: the desk has no USDC signer" };
+      else if (inventory === null) verdict = { available: false, reason: "payout_unavailable", reason_text: "closed: the desk's USDC inventory could not be read" };
+      else if (micros > inventory) verdict = { available: false, reason: "inventory_short", reason_text: `closed: the desk's USDC inventory (${formatUsd(inventory)}) cannot cover this payout` };
+    }
     return {
       id: d.id, sats_in: d.sats, usd_out_micros: micros, usd_out: formatUsd(micros),
       route: `/api/usdc/${d.id}`, method: "POST",
@@ -81,6 +91,8 @@ export default async function handler(req) {
         open: satsInOpen, reason: satsInOpen ? null : "caps", reason_text: satsInOpen ? null : "closed: every denomination is above a cap right now",
         pay: "sats over Bitcoin Lightning (x402 exact on lnbtc)", receive: "USDC on Base",
         rate_btc_usd: bid, denominations: satsIn,
+        payout_mode: PAYOUT_MODE,
+        inventory_usd_micros: baseMode ? inventory : null,
         body: { destination: "0x… an EVM address on the route's Base network", quote_id: "optional, this quote_id while valid_until holds" },
       },
       usdc_in: {

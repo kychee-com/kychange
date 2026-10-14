@@ -60,6 +60,15 @@ export async function recordAttempt({ swap_id, run_id, mode, outcome, response }
   );
 }
 
+/** The newest payout attempt of one mode for a swap, so a re-fired run resumes the call it already made. */
+export async function latestAttempt(swapId, mode) {
+  const result = await sql(
+    `SELECT * FROM payout_attempts WHERE swap_id = $1 AND mode = $2 ORDER BY created_at DESC LIMIT 1`,
+    [swapId, mode],
+  );
+  return result.rows[0] ?? null;
+}
+
 export async function recordHedge({ swap_id, venue, side, client_order_id, status, response }) {
   await sql(
     `INSERT INTO hedges (hedge_id, swap_id, venue, side, client_order_id, status, response) VALUES ($1, $2, $3, $4, $5, $6, $7)`,

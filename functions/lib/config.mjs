@@ -15,8 +15,21 @@ const num = (name, fallback) => {
 export const NETWORK_MODE = env("NETWORK_MODE", "testnet");
 /** Hedge venue adapter: `paper` marks to a public index and fills instantly. */
 export const HEDGE_VENUE = env("HEDGE_VENUE", "paper");
-/** `demo` records a simulated USDC transfer; `base` sends one from the hot EOA (not wired yet). */
+/** `demo` records a simulated USDC transfer; `base` sends one from the project's Run402 KMS signer. */
 export const PAYOUT_MODE = env("PAYOUT_MODE", "demo");
+/** The Run402 KMS signer (`run402 contracts provision-signer`) that holds the desk's USDC and signs its transfers in `base` mode. */
+export const PAYOUT_SIGNER_ID = env("PAYOUT_SIGNER_ID", "");
+export function payoutSignerConfigured() {
+  return PAYOUT_SIGNER_ID.length > 0;
+}
+/** The Base chain, its USDC contract, and its explorer, by network mode. */
+export const BASE_CHAINS = Object.freeze({
+  testnet: Object.freeze({ chain: "base-sepolia", usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", explorer: "https://sepolia.basescan.org" }),
+  mainnet: Object.freeze({ chain: "base-mainnet", usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", explorer: "https://basescan.org" }),
+});
+export function baseChain() {
+  return BASE_CHAINS[NETWORK_MODE] ?? BASE_CHAINS.testnet;
+}
 export const SPREAD_BPS = num("SPREAD_BPS", 50);
 export const QUOTE_TTL_SECONDS = num("QUOTE_TTL_SECONDS", 60);
 export const MAX_FILL_USD = num("MAX_FILL_USD", 25);
@@ -51,6 +64,7 @@ export const BOLT11_CURRENCY = Object.freeze({ testnet: "tb", mainnet: "bc" });
 
 /** Route B denominations: the sats a buyer pays, one priced route each. */
 export const DENOMINATIONS = Object.freeze([
+  { id: "100", sats: 100 },
   { id: "10k", sats: 10_000 },
   { id: "100k", sats: 100_000 },
   { id: "1m", sats: 1_000_000 },
