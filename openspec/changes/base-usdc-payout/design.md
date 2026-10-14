@@ -43,4 +43,4 @@ Provision the signer, fund it with USDC, set `PAYOUT_SIGNER_ID` and `PAYOUT_MODE
 
 ## Open Questions
 
-- Whether the organization's payout wallet can be the signer itself (Run402's `proven-payout-address`), which would remove the sweep.
+- Run402's `app-wallet` change (proposed 2026-10-14) adds a facilitator-settled transfer route for signers (no ETH on the signer, one signing fee) and lets the organization select the signer as its payout address. Once it ships, `lib/base.mjs` moves from `/contracts/v1/call` to `POST /contracts/v1/signers/:id/transfers` and the inventory becomes the receipts; until then the signer needs native gas as well as USDC.
