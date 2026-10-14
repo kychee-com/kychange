@@ -13,7 +13,7 @@
 
 ## 3. Proof on testnet
 
-- [ ] 3.1 Provision a `base-sepolia` signer on the project, fund it with Sepolia USDC, set the secrets, deploy.
-- [ ] 3.2 A 100-sat swap reaches `paid_out` with a real Base Sepolia transaction to the buyer's address; a re-fired run does not transfer again.
-- [ ] 3.3 An invalid-destination USDC-in swap reaches `refunded` with a real transaction back to the payer.
-- [ ] 3.4 Record the proof in `docs/proofs/`.
+- [x] 3.1 Provision a `base-sepolia` signer on the project, fund it with Sepolia USDC, set the secrets, deploy.
+- [x] 3.2 A 100-sat swap reaches `paid_out` with a real Base Sepolia transaction to the buyer's address; a re-fired run does not transfer again.
+- [x] 3.3 An invalid-destination USDC-in swap reaches `refunded` with a real transaction back to the payer.
+- [x] 3.4 Record the proof in `docs/proofs/`.
