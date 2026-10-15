@@ -7,7 +7,7 @@
 import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
-import { bech32, utils as scure } from "@scure/base";
+import { bech32 } from "@scure/base";
 
 const SIGNATURE_WORDS = 104;
 const TIMESTAMP_WORDS = 7;
@@ -32,7 +32,7 @@ export function decodeInvoice(invoice) {
   if (fields.paymentHash === undefined) throw new Error("invoice has no payment hash");
   if (!fields.hasPaymentSecret) throw new Error("invoice has no payment secret");
   const prefixBytes = new TextEncoder().encode(prefix);
-  const dataBytes = Uint8Array.from(scure.convertRadix2(signed, 5, 8, true));
+  const dataBytes = wordsToPaddedBytes(signed);
   const message = new Uint8Array(prefixBytes.length + dataBytes.length);
   message.set(prefixBytes);
   message.set(dataBytes, prefixBytes.length);
@@ -116,4 +116,23 @@ function wordsToNumber(words) {
     if (!Number.isSafeInteger(value)) throw new Error("integer field too large");
   }
   return value;
+}
+
+// BOLT11 signs the 5-bit data words regrouped into bytes, with the final
+// partial byte zero-padded (bech32.fromWords is strict and refuses that).
+function wordsToPaddedBytes(words) {
+  const out = new Uint8Array(Math.ceil((words.length * 5) / 8));
+  let acc = 0;
+  let bits = 0;
+  let index = 0;
+  for (const word of words) {
+    acc = ((acc << 5) | word) & 0xfff;
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      out[index++] = (acc >> bits) & 0xff;
+    }
+  }
+  if (bits > 0) out[index] = (acc << (8 - bits)) & 0xff;
+  return out;
 }
