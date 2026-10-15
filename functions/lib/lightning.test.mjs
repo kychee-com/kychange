@@ -72,6 +72,8 @@ describe("checkPayoutInvoice", () => {
 
 describe("resolveLnurlPay", () => {
   const metadata = LNURL_METADATA;
+  // The fixture invoices are fixed, so the clock is pinned to just after they were issued.
+  const nowSeconds = decodeInvoice(INVOICE_1000).timestamp + 60;
   const fetchFor = (routes) => async (url) => {
     const handler = routes[new URL(url).pathname];
     if (!handler) return new Response("not here", { status: 404 });
@@ -84,10 +86,14 @@ describe("resolveLnurlPay", () => {
       "/.well-known/lnurlp/alice": () => ({ tag: "payRequest", callback: "https://wallet.example/lnurlp/alice/cb", minSendable: 1000, maxSendable: 100_000_000, metadata }),
       "/lnurlp/alice/cb": (url) => (url.searchParams.get("amount") === "1000000" ? { pr: INVOICE_1000, routes: [] } : { status: "ERROR", reason: "bad amount" }),
     });
-    const resolved = await resolveLnurlPay({ name: "alice", domain: "wallet.example", amountMsat: 1_000_000, currency: "tb", fetchImpl });
+    const resolved = await resolveLnurlPay({ name: "alice", domain: "wallet.example", amountMsat: 1_000_000, currency: "tb", fetchImpl, nowSeconds });
     assert.equal(resolved.bolt11, INVOICE_1000);
     assert.equal(resolved.paymentHash, INVOICE_1000_HASH);
     assert.equal(resolved.metadataHash, "cd2830268c9fd3b1c214d20d769cccd228ae08c0bb682281285aee8fdaac11cf");
+    await assert.rejects(
+      resolveLnurlPay({ name: "alice", domain: "wallet.example", amountMsat: 1_000_000, currency: "tb", fetchImpl, nowSeconds: nowSeconds + 100 * 86_400 }),
+      (error) => error instanceof LnurlError && error.code === "lnurl_invoice_expired" && error.retryable === true,
+    );
   });
 
   it("refuses a callback invoice whose description hash is not the LNURL metadata, or whose amount differs", async () => {

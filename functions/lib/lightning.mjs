@@ -96,7 +96,7 @@ async function fetchJson(url, fetchImpl, timeoutMs) {
  * HTTPS only, bounded time and size, the callback's invoice checked for the
  * amount, the network, and the LNURL metadata hash before it is returned.
  */
-export async function resolveLnurlPay({ name, domain, amountMsat, currency, fetchImpl = fetch, timeoutMs = LNURL_TIMEOUT_MS }) {
+export async function resolveLnurlPay({ name, domain, amountMsat, currency, fetchImpl = fetch, timeoutMs = LNURL_TIMEOUT_MS, nowSeconds = Math.floor(Date.now() / 1000) }) {
   if (!Number.isInteger(amountMsat) || amountMsat <= 0) throw new LnurlError("lnurl_invalid", "amount must be a positive integer of msat");
   const meta = await fetchJson(`https://${domain}/.well-known/lnurlp/${encodeURIComponent(name)}`, fetchImpl, timeoutMs);
   if (meta?.status === "ERROR") throw new LnurlError("lnurl_error", String(meta.reason ?? "the address answered an error"));
@@ -129,7 +129,7 @@ export async function resolveLnurlPay({ name, domain, amountMsat, currency, fetc
   if (!decoded.descriptionHashes.includes(metadataHash)) {
     throw new LnurlError("lnurl_invoice_description_mismatch", "the invoice's description hash is not the LNURL metadata");
   }
-  if (decoded.timestamp + decoded.expirySeconds < Math.floor(Date.now() / 1000) + MIN_REMAINING_SECONDS) {
+  if (decoded.timestamp + decoded.expirySeconds < nowSeconds + MIN_REMAINING_SECONDS) {
     throw new LnurlError("lnurl_invoice_expired", "the callback returned an invoice about to expire", true);
   }
   return { bolt11: pay.pr, paymentHash: decoded.paymentHash, metadataHash, callback: meta.callback, payee: decoded.payee };
