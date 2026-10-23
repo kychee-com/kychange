@@ -14,7 +14,7 @@ import { venue } from "./lib/venue.mjs";
 
 /** Wallet answers that will not change on a retry: the swap owes a refund. */
 const PERMANENT_WALLET_ERRORS = new Set([
-  "INSUFFICIENT_BALANCE", "QUOTA_EXCEEDED", "RESTRICTED", "UNAUTHORIZED", "PAYMENT_FAILED", "NOT_IMPLEMENTED", "BAD_URI",
+  "INSUFFICIENT_BALANCE", "QUOTA_EXCEEDED", "RESTRICTED", "UNAUTHORIZED", "PAYMENT_FAILED", "NOT_IMPLEMENTED", "INVALID_URI",
 ]);
 
 async function park(swap, ctx, reason, detail) {
